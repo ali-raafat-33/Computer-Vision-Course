@@ -25,8 +25,6 @@ To a computer, an image is just a grid of numbers. A grayscale image is a 2D mat
 
 ### A typical pipeline
 
-![Computer Vision pipeline](images/cv-pipeline.svg)
-
 | Stage | Purpose |
 |---|---|
 | **Input image** | Photo, video frame, scan, or camera stream |
@@ -40,8 +38,6 @@ To a computer, an image is just a grid of numbers. A grayscale image is a 2D mat
 ## 2. AI vs Machine Learning vs Deep Learning vs Computer Vision
 
 These terms are often used interchangeably, but they describe different things.
-
-![AI vs ML vs DL vs CV](images/ai-ml-dl-cv.svg)
 
 | Term | Definition | Example |
 |---|---|---|
@@ -60,8 +56,6 @@ These terms are often used interchangeably, but they describe different things.
 
 ## 3. Real-World Applications
 
-![Computer Vision applications](images/applications.svg)
-
 | Industry | Use cases |
 |---|---|
 | **Healthcare** | Detecting diseases in X-rays/MRI/CT scans, segmenting tumors, counting cells in microscopy |
@@ -74,8 +68,6 @@ These terms are often used interchangeably, but they describe different things.
 ---
 
 ## 4. Core Computer Vision Tasks
-
-![Core CV tasks](images/cv-tasks.svg)
 
 The four tasks differ in **how detailed the output is**: from a single label per image, to boxes, to per-pixel masks, to entirely new images.
 
