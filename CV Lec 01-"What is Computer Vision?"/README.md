@@ -195,15 +195,3 @@ Unlike the other three tasks, which **analyze** images, generation **creates** t
 - [OpenCV documentation](https://docs.opencv.org/)
 
 ---
-
-## Repository Structure
-
-```
-computer-vision/
-├── README.md
-└── images/
-    ├── ai-ml-dl-cv.svg
-    ├── applications.svg
-    ├── cv-pipeline.svg
-    └── cv-tasks.svg
-```
