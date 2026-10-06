@@ -108,10 +108,10 @@ Computer Vision = AI applied to images/video
 Classification      Detection            Segmentation         Generation
 ┌───────────┐      ┌───────────┐        ┌───────────┐        "a cat wearing
 │           │      │ ┌─────┐   │        │ ░░░░░░░   │         a hat" ──► 🖼️
-│    🐱     │      │ │ 🐱  │cat│        │ ░░🐱░░░   │
+│    🐱     │      │ │ 🐱  │cat│       │ ░░🐱░░░   │
 │           │      │ └─────┘   │        │ ░░░░░░░   │
 └───────────┘      └───────────┘        └───────────┘
-   "cat"           box + "cat"          every pixel labeled
+   "cat"            box + "cat"       every pixel labeled
 ```
 
 ---
