@@ -20,6 +20,21 @@ In this lecture we learn the basic operations we apply to images **before** feed
 3. [Histograms](#3-histograms)
 4. [Pixel Inspection](#4-pixel-inspection)
 
+**1.7 Introduction to OpenCV**
+1. [Installing OpenCV](#installing-opencv)
+2. [cv2.imread()](#cv2imread-read-an-image)
+3. [cv2.imshow()](#cv2imshow-display-an-image-in-a-window)
+4. [cv2.imwrite()](#cv2imwrite-save-an-image)
+5. [cv2.resize() and cv2.cvtColor()](#cv2resize-and-cv2cvtcolor-in-a-pipeline)
+
+**1.8 PIL / Pillow**
+1. [Opening images](#opening-images)
+2. [RGB conversion](#rgb-conversion)
+3. [Resize](#resize)
+4. [Crop](#crop)
+5. [Rotate](#rotate)
+6. [Saving images](#saving-images)
+
 ---
 
 ## Setup
@@ -402,6 +417,356 @@ print("Mean per channel (B,G,R):", img.mean(axis=(0, 1)))
 
 ---
 
+# 1.7 Introduction to OpenCV
+
+**What it is:** OpenCV (Open Source Computer Vision Library) is the most widely used library for image and video processing. It is written in C++ (so it is fast) and has a Python interface called `cv2`.
+
+**What it gives us:** reading and writing images, resizing, color conversion, filtering, edge detection, feature detection, video processing, and much more.
+
+## Installing OpenCV
+
+```bash
+# Standard version (includes cv2.imshow windows)
+pip install opencv-python
+
+# Headless version: for servers, Docker, and Colab (no GUI windows)
+pip install opencv-python-headless
+```
+
+> Install **only one** of them in the same environment. Having both causes conflicts.
+
+Verify the installation:
+
+```python
+import cv2
+print(cv2.__version__)    # e.g. 4.13.0
+```
+
+> The package is named `opencv-python` but you import it as `cv2`.
+
+---
+
+## `cv2.imread()`: Read an image
+
+**What it does:** loads an image from disk and returns it as a NumPy array in **BGR** order.
+
+```python
+img = cv2.imread("images/sample.jpg")
+print(type(img))     # <class 'numpy.ndarray'>
+print(img.shape)     # (512, 512, 3)
+print(img.dtype)     # uint8
+```
+
+**The second argument (flag)** controls *how* the image is loaded:
+
+| Flag | Value | Result |
+|---|---|---|
+| `cv2.IMREAD_COLOR` | `1` | 3 channels BGR (default, drops transparency) |
+| `cv2.IMREAD_GRAYSCALE` | `0` | 1 channel grayscale |
+| `cv2.IMREAD_UNCHANGED` | `-1` | Keeps the file as is (including the alpha/transparency channel in PNGs) |
+| `cv2.IMREAD_REDUCED_COLOR_2` | | Loads at half size (faster for huge images) |
+
+![imread flags](images/14_imread_flags.png)
+
+```python
+color = cv2.imread("images/sample.jpg", cv2.IMREAD_COLOR)
+gray  = cv2.imread("images/sample.jpg", cv2.IMREAD_GRAYSCALE)
+half  = cv2.imread("images/sample.jpg", cv2.IMREAD_REDUCED_COLOR_2)
+
+print(color.shape, gray.shape, half.shape)
+# (512, 512, 3) (512, 512) (256, 256, 3)
+```
+
+> **Common mistake:** if the path is wrong, `cv2.imread` does **not** raise an error. It silently returns `None`, and you only get an error later (e.g. `'NoneType' object has no attribute 'shape'`). Always check:
+
+```python
+img = cv2.imread("images/sample.jpg")
+if img is None:
+    raise FileNotFoundError("Could not read the image. Check the path.")
+```
+
+---
+
+## `cv2.imshow()`: Display an image in a window
+
+**What it does:** opens a window and shows the image. It expects **BGR**, so there is no need to convert.
+
+```python
+cv2.imshow("My Image", img)    # (window title, image)
+cv2.waitKey(0)                 # wait until any key is pressed (0 = forever)
+cv2.destroyAllWindows()        # close all windows
+```
+
+- `cv2.waitKey(0)` is **required**. Without it the window flashes and closes immediately.
+- `cv2.waitKey(1000)` waits 1000 ms (1 second), then continues.
+- `cv2.imshow` works in normal Python scripts only. It does **not** work in Jupyter or Colab, so use `plt.imshow` there (see section 1.6) or `from google.colab.patches import cv2_imshow`.
+
+```python
+# Close the window only when the user presses 'q'
+cv2.imshow("My Image", img)
+while True:
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+cv2.destroyAllWindows()
+```
+
+---
+
+## `cv2.imwrite()`: Save an image
+
+**What it does:** writes an image to disk. The **file extension decides the format** (`.jpg`, `.png`, `.bmp`, ...).
+
+```python
+success = cv2.imwrite("output.png", img)
+print(success)    # True if saved, False if it failed
+```
+
+**Controlling quality / compression:**
+
+```python
+# JPEG: quality from 0 (worst, smallest) to 100 (best, largest). Default is 95.
+cv2.imwrite("q95.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+cv2.imwrite("q10.jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 10])
+
+# PNG: compression from 0 (fast, big) to 9 (slow, small). It is lossless either way.
+cv2.imwrite("out.png", img, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+```
+
+![imwrite quality](images/15_imwrite_quality.png)
+
+| Format | Type | Use it for |
+|---|---|---|
+| **PNG** | Lossless (exact pixels), bigger files | Screenshots, masks, anything you will process again |
+| **JPEG** | Lossy (loses some detail), small files | Photos, sharing, storage |
+
+> **Remember:** every time you re-save a JPEG you lose a bit more quality. Save intermediate results as PNG.
+> Also, `cv2.imwrite` expects **BGR**. If you converted to RGB for display, convert back before saving.
+
+---
+
+## `cv2.resize()` and `cv2.cvtColor()` in a pipeline
+
+We covered both in detail in section 1.5. Here is how they work together with `imread` and `imwrite` in a typical preprocessing pipeline:
+
+![OpenCV pipeline](images/16_opencv_pipeline.png)
+
+```python
+# 1) Read
+img = cv2.imread("images/sample.jpg")
+
+# 2) Resize (width, height)
+resized = cv2.resize(img, (256, 256), interpolation=cv2.INTER_AREA)
+
+# 3) Convert color space
+gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+
+# 4) Save the result
+cv2.imwrite("images/processed_gray.png", gray)
+
+print(img.shape, "->", resized.shape, "->", gray.shape)
+# (512, 512, 3) -> (256, 256, 3) -> (256, 256)
+```
+
+---
+
+# 1.8 PIL / Pillow
+
+**What it is:** Pillow (the maintained fork of PIL, the Python Imaging Library) is another popular image library. It is simpler and more "Pythonic" than OpenCV, and it is the default image library for many deep learning tools (e.g. `torchvision`, Hugging Face).
+
+**OpenCV vs Pillow:**
+
+| | OpenCV (`cv2`) | Pillow (`PIL`) |
+|---|---|---|
+| Image object | NumPy array | `Image` object |
+| Color order | **BGR** | **RGB** |
+| Size order | `shape = (H, W, C)` | `size = (W, H)` |
+| Strengths | Computer vision algorithms, video, speed | Simple API, many file formats, easy drawing/text |
+| Typical use | Detection, tracking, filtering | Loading data, simple edits, augmentation |
+
+## Installing Pillow
+
+```bash
+pip install pillow
+```
+
+```python
+from PIL import Image      # note: install "pillow", import "PIL"
+import PIL
+print(PIL.__version__)
+```
+
+---
+
+## Opening images
+
+**What it does:** `Image.open()` opens the image and returns an `Image` object (not a NumPy array).
+
+```python
+from PIL import Image
+
+pil_img = Image.open("images/sample.jpg")
+
+print(pil_img.size)      # (512, 512)  -> (width, height)
+print(pil_img.mode)      # RGB
+print(pil_img.format)    # JPEG
+
+pil_img.show()           # opens the image in your default viewer
+```
+
+> **Common mistake:** `PIL.size` is `(width, height)`, while `numpy.shape` is `(height, width, channels)`.
+
+> `Image.open()` is *lazy*: it reads the file header first and loads the pixels only when needed. If the path is wrong it **raises** `FileNotFoundError` (unlike `cv2.imread`, which returns `None`).
+
+In Jupyter, just write the variable name on the last line of a cell (`pil_img`) and the image is displayed.
+
+---
+
+## RGB conversion
+
+**What it is:** `image.convert(mode)` changes the image **mode**.
+
+**Why it matters:** images come in different modes. A PNG may be `RGBA` (4 channels) or `P` (palette), and a model expecting 3 channels will crash. Calling `.convert("RGB")` right after opening is a standard safety step.
+
+| Mode | Meaning |
+|---|---|
+| `"RGB"` | 3 channels (red, green, blue) |
+| `"RGBA"` | RGB + alpha (transparency) |
+| `"L"` | Grayscale (8-bit) |
+| `"1"` | Black & white (1-bit) |
+
+![PIL modes](images/17_pil_modes.png)
+
+```python
+rgb  = pil_img.convert("RGB")    # always safe: guarantees 3 channels
+gray = pil_img.convert("L")      # grayscale
+bw   = pil_img.convert("1")      # black & white
+
+print(rgb.mode, gray.mode, bw.mode)   # RGB L 1
+```
+
+### Converting between Pillow and OpenCV / NumPy
+
+Because the **color orders differ** (RGB in Pillow, BGR in OpenCV), you must convert when moving between them.
+
+![PIL vs OpenCV](images/22_pil_vs_opencv.png)
+
+```python
+import numpy as np
+import cv2
+
+# PIL -> NumPy (RGB order)
+arr = np.array(pil_img)
+print(arr.shape)                              # (512, 512, 3)
+
+# PIL -> OpenCV (needs RGB -> BGR)
+cv_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+# OpenCV -> PIL (needs BGR -> RGB)
+cv_img = cv2.imread("images/sample.jpg")
+pil_img = Image.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
+```
+
+---
+
+## Resize
+
+**Two methods:**
+- `resize((w, h))` forces an exact size (may distort the aspect ratio).
+- `thumbnail((w, h))` shrinks the image **in place** so it fits inside the box and **keeps the aspect ratio**. It never enlarges.
+
+**Resampling filters:** `Image.Resampling.NEAREST` (fastest), `BILINEAR`, `BICUBIC`, and `LANCZOS` (best quality for shrinking).
+
+![PIL resize](images/18_pil_resize.png)
+
+```python
+# Exact size
+resized = pil_img.resize((256, 256), Image.Resampling.LANCZOS)
+print(resized.size)      # (256, 256)
+
+# Keep aspect ratio (modifies the image in place, so copy first)
+thumb = pil_img.copy()
+thumb.thumbnail((200, 200))
+print(thumb.size)        # (200, 200) for this square image
+```
+
+> `thumbnail()` changes the image itself and returns `None`. Don't write `thumb = thumb.thumbnail(...)`.
+
+---
+
+## Crop
+
+**What it does:** `crop((left, upper, right, lower))` returns the region inside the box. Coordinates are **(x, y)** pixel positions, the opposite order of NumPy slicing.
+
+![PIL crop](images/19_pil_crop.png)
+
+```python
+box = (170, 40, 330, 200)       # (left, upper, right, lower)
+cropped = pil_img.crop(box)
+print(cropped.size)             # (160, 160)
+```
+
+> **Compare with OpenCV:** `img[y1:y2, x1:x2]` in NumPy versus `crop((x1, y1, x2, y2))` in Pillow. Same region, different order.
+
+---
+
+## Rotate
+
+**What it does:** `rotate(angle)` turns the image **counter-clockwise** by `angle` degrees.
+
+- By default the canvas stays the same size, so the corners get cut and the empty areas are filled with black.
+- `expand=True` enlarges the canvas so the whole rotated image fits.
+- `fillcolor` sets the color of the empty areas.
+- For exact 90° steps, `transpose()` is faster and lossless.
+
+![PIL rotate](images/20_pil_rotate.png)
+
+```python
+r1 = pil_img.rotate(45)                                              # corners cut
+r2 = pil_img.rotate(45, expand=True, fillcolor=(255, 255, 255))      # full image, white fill
+r3 = pil_img.transpose(Image.Transpose.ROTATE_90)                    # exact 90° (counter-clockwise)
+
+print(r1.size, r2.size)     # (512, 512) (726, 726)
+```
+
+> **Careful:** Pillow rotates **counter-clockwise** for positive angles. To rotate clockwise use a negative angle: `rotate(-45)`.
+
+Flipping in Pillow works with `transpose` too:
+
+```python
+flip_h = pil_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+flip_v = pil_img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+```
+
+---
+
+## Saving images
+
+**What it does:** `image.save(path)` writes the image. Like OpenCV, the extension decides the format, and you can pass format options.
+
+![PIL saving](images/21_pil_saving.png)
+
+```python
+pil_img.save("output.png")                       # lossless
+pil_img.save("output_q95.jpg", quality=95)       # high quality JPEG
+pil_img.save("output_q20.jpg", quality=20)       # small file, visible artifacts
+pil_img.save("output.webp", quality=80)          # modern format, small size
+```
+
+> **Common error:** you cannot save an `RGBA` image as JPEG (JPEG has no transparency). Convert first:
+>
+> ```python
+> pil_img.convert("RGB").save("output.jpg")
+> ```
+
+Check the file size to compare formats:
+
+```python
+import os
+print(os.path.getsize("output.png") / 1024, "KB")
+```
+
+---
+
 ## Summary
 
 | Operation | Function | Typical use |
@@ -415,6 +780,9 @@ print("Mean per channel (B,G,R):", img.mean(axis=(0, 1)))
 | Display | `plt.imshow` | Always convert BGR → RGB |
 | Histogram | `cv2.calcHist`, `plt.hist` | Brightness and contrast analysis |
 | Pixel access | `img[row, col]` | Debugging and understanding the data |
+| Read / show / save | `cv2.imread`, `cv2.imshow`, `cv2.imwrite` | Basic OpenCV I/O (check for `None`!) |
+| Pillow open / convert | `Image.open`, `.convert("RGB")` | Safe loading with a guaranteed mode |
+| Pillow edit | `.resize`, `.crop`, `.rotate`, `.save` | Simple edits and augmentation |
 
 ## Key Takeaways
 
@@ -423,3 +791,6 @@ print("Mean per channel (B,G,R):", img.mean(axis=(0, 1)))
 3. `cv2.resize` takes `(width, height)`, but array indexing uses `[row, col]`.
 4. Convert to `float32` **before** normalizing.
 5. Always visualize after each operation to verify the result.
+6. `cv2.imread` returns `None` on a wrong path (no error), while `Image.open` raises an exception.
+7. OpenCV uses **BGR** and `shape = (H, W, C)`; Pillow uses **RGB** and `size = (W, H)`. Convert when switching libraries.
+8. Use PNG for lossless intermediate results and JPEG only for final photos.
