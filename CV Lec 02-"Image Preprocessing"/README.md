@@ -1,632 +1,425 @@
 # Computer Vision — Image Operations & Visualization
 
-This lecture introduces the most important operations used to **prepare, transform, visualize, and analyze images** before using them in Computer Vision and Deep Learning.
+In this lecture we learn the basic operations we apply to images **before** feeding them to any model, and how to **look at** images and their data to understand what is going on.
+
+> All examples use one sample image: `images/sample.jpg` (the "astronaut" image from scikit-image, public domain, 512×512).
+
+## Table of Contents
+
+**1.5 Image Operations**
+1. [Resize](#1-resize)
+2. [Crop](#2-crop)
+3. [Rotate](#3-rotate)
+4. [Flip](#4-flip)
+5. [Normalize](#5-normalize)
+6. [Convert Color Spaces](#6-convert-color-spaces)
+
+**1.6 Image Visualization**
+1. [Displaying Images](#1-displaying-images)
+2. [Displaying Multiple Images](#2-displaying-multiple-images)
+3. [Histograms](#3-histograms)
+4. [Pixel Inspection](#4-pixel-inspection)
+
+---
+
+## Setup
+
+```bash
+pip install opencv-python numpy matplotlib
+```
+
+```python
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+img = cv2.imread("images/sample.jpg")   # loaded as a NumPy array
+print(img.shape, img.dtype)             # (512, 512, 3) uint8
+```
+
+### Important: an image is just a NumPy array
+
+- Shape is `(height, width, channels)`, so the **first index is the row (y)** and the second is the **column (x)**.
+- Each value is `uint8`: an integer from `0` (black) to `255` (white).
+- **OpenCV loads color images as BGR, not RGB.** Matplotlib expects RGB. If you display a BGR image directly, the colors look wrong (red and blue are swapped).
+
+![BGR vs RGB](images/01_bgr_vs_rgb.png)
+
+```python
+img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # use this for plt.imshow
+```
 
 ---
 
 # 1.5 Image Operations
 
-Image operations are transformations applied to an image to change its **size, region, orientation, pixel values, or color representation**.
-
 ## 1. Resize
 
-![Resize](images/resize.png)
+**What it is:** changing the width and height of an image.
 
-**Resize** changes the dimensions of an image.
+**Why we need it:** most models require a fixed input size (e.g. 224×224). Smaller images are also faster to process.
 
-For example:
+**How to choose the interpolation method:** when pixels are created or removed, OpenCV has to estimate new pixel values.
 
-```text
-Original: 800 × 600 × 3
-      ↓ Resize
-New:      224 × 224 × 3
-```
+| Method | Best for |
+|---|---|
+| `cv2.INTER_AREA` | **Shrinking** images (best quality) |
+| `cv2.INTER_LINEAR` | General use (default) |
+| `cv2.INTER_CUBIC` | **Enlarging** images (smoother, slower) |
+| `cv2.INTER_NEAREST` | Fastest, blocky result (keeps hard edges) |
 
-### Why do we resize?
-
-Deep Learning models usually require images in a consistent size so they can be processed together in batches.
-
-For example:
-
-```text
-Image 1 → 500 × 300
-Image 2 → 800 × 600
-Image 3 → 224 × 224
-```
-
-We can resize them to:
-
-```text
-224 × 224
-224 × 224
-224 × 224
-```
-
-### Python example
+![Resize](images/02_resize.png)
 
 ```python
-from PIL import Image
+# Resize to an exact size. NOTE: the order is (width, height)
+small = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
 
-image = Image.open("cat.jpg")
-image = image.resize((224, 224))
+# Resize by a scale factor (keeps the aspect ratio)
+half = cv2.resize(img, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+
+# Enlarge: compare two interpolation methods
+big_nearest = cv2.resize(small, (512, 512), interpolation=cv2.INTER_NEAREST)  # blocky
+big_cubic   = cv2.resize(small, (512, 512), interpolation=cv2.INTER_CUBIC)    # smooth
+
+print(img.shape, "->", small.shape)   # (512, 512, 3) -> (128, 128, 3)
 ```
 
-### Important: Aspect Ratio
-
-Directly changing an image from:
-
-```text
-800 × 400
-```
-
-to:
-
-```text
-224 × 224
-```
-
-can distort the object because the width and height are scaled differently.
+> **Common mistake:** `img.shape` is `(height, width)` but `cv2.resize` takes `(width, height)`.
 
 ---
 
 ## 2. Crop
 
-![Crop](images/crop.png)
+**What it is:** keeping only a rectangular region of the image (Region of Interest, ROI).
 
-**Crop** means keeping only a selected region of an image and removing the rest.
+**Why we need it:** remove useless background, focus on the object (a face, a license plate), or cut an image into patches.
 
-### Why do we crop?
+**How it works:** there is no special function. Since the image is a NumPy array, cropping is just **slicing**: `img[y1:y2, x1:x2]`.
 
-Cropping is useful when we want to:
+![Crop](images/03_crop.png)
 
-- Focus on an important object.
-- Remove unnecessary areas.
-- Extract a region of interest.
-- Create training examples.
-- Perform data augmentation.
+```python
+y1, y2 = 40, 200      # rows    (top to bottom)
+x1, x2 = 170, 330     # columns (left to right)
 
-### Common types
+crop = img[y1:y2, x1:x2]
+print(crop.shape)     # (160, 160, 3)
 
-**Center Crop:** Takes the center region.
+# Use .copy() if you want to modify the crop without changing the original
+crop = img[y1:y2, x1:x2].copy()
+```
 
-**Random Crop:** Takes a random region and is commonly used for **Data Augmentation**.
+> **Remember:** slicing returns a *view*, not a copy. Changing `crop` changes `img` unless you call `.copy()`.
 
 ---
 
 ## 3. Rotate
 
-![Rotate](images/rotate.png)
+**What it is:** turning the image around a point by some angle.
 
-**Rotation** changes the orientation of an image by a specific angle.
+**Why we need it:** fixing wrongly oriented photos, and **data augmentation** (making the model robust to rotated objects).
 
-Common angles include:
+**Two ways:**
+1. `cv2.rotate`: fast, only for 90°, 180°, 270° with no quality loss.
+2. `cv2.warpAffine`: any angle, using a rotation matrix. With arbitrary angles the corners get cut off unless we enlarge the output canvas.
 
-```text
-90°
-180°
-270°
-45°
-```
-
-### Python example
+![Rotate](images/04_rotate.png)
 
 ```python
-image = image.rotate(90)
-```
+# 1) Fixed angles
+rot90 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+# also: cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE
 
-### Why use rotation?
+# 2) Any angle
+h, w = img.shape[:2]
+center = (w // 2, h // 2)
+M = cv2.getRotationMatrix2D(center, angle=45, scale=1.0)   # positive angle = counter-clockwise
+rotated = cv2.warpAffine(img, M, (w, h))                   # corners are cut off
 
-Rotation is commonly used as **Data Augmentation**.
-
-It helps a model learn that an object can appear at different orientations.
-
-For example:
-
-```text
-Original Image
-      ↓
-   Rotate
-      ↓
-New Training Example
+# 3) Any angle WITHOUT cutting the corners: enlarge the canvas first
+cos, sin = abs(M[0, 0]), abs(M[0, 1])
+new_w = int(h * sin + w * cos)
+new_h = int(h * cos + w * sin)
+M[0, 2] += new_w / 2 - center[0]
+M[1, 2] += new_h / 2 - center[1]
+rotated_full = cv2.warpAffine(img, M, (new_w, new_h))
 ```
 
 ---
 
 ## 4. Flip
 
-![Flip](images/flip.png)
+**What it is:** mirroring the image.
 
-**Flip** creates a mirrored version of an image.
+**Why we need it:** another very common **data augmentation**. A flipped cat is still a cat.
 
-### Horizontal Flip
+| `flipCode` | Effect |
+|---|---|
+| `1` | Horizontal (left ↔ right) |
+| `0` | Vertical (top ↕ bottom) |
+| `-1` | Both |
 
-Changes:
-
-```text
-Left ↔ Right
-```
-
-Example:
+![Flip](images/05_flip.png)
 
 ```python
-image.transpose(Image.FLIP_LEFT_RIGHT)
+flip_h    = cv2.flip(img, 1)    # horizontal
+flip_v    = cv2.flip(img, 0)    # vertical
+flip_both = cv2.flip(img, -1)   # both
+
+# Same thing with NumPy slicing
+flip_h_np = img[:, ::-1]        # reverse the columns
+flip_v_np = img[::-1, :]        # reverse the rows
 ```
 
-### Vertical Flip
-
-Changes:
-
-```text
-Top ↔ Bottom
-```
-
-Example:
-
-```python
-image.transpose(Image.FLIP_TOP_BOTTOM)
-```
-
-### Important
-
-Not every image should be flipped.
-
-For example, flipping text, some road signs, or images with a fixed orientation may create unrealistic data.
+> **Be careful:** flipping is not always safe. Flipping text or digits (6 vs 9, or letters) changes the meaning.
 
 ---
 
 ## 5. Normalize
 
-![Normalize](images/normalize.png)
+**What it is:** changing the range of pixel values, usually from `[0, 255]` to a smaller range.
 
-**Normalization** changes the numerical range of pixel values.
+**Why we need it:** neural networks train **faster and more stably** when inputs are small and centered around zero. Large values like 255 make gradients unstable.
 
-A typical 8-bit image has:
+**Two common types:**
+1. **Scaling to [0, 1]:** divide by 255.
+2. **Standardization (mean/std):** subtract the mean and divide by the std for each channel. Pretrained models (e.g. ResNet on ImageNet) expect the ImageNet mean/std shown below.
 
-```text
-0 → 255
-```
+![Normalize](images/06_normalize.png)
 
-A common normalization is:
-
-```text
-normalized_pixel = pixel / 255
-```
-
-For example:
-
-```text
-[120, 200, 50]
-       ↓
-[0.47, 0.78, 0.20]
-```
-
-### Why normalize?
-
-Neural networks generally train more effectively when input values have a suitable and consistent numerical scale.
-
-### Standardization
-
-Another common method is:
-
-```text
-x_normalized = (x - mean) / std
-```
-
-In PyTorch, you may see:
+The image looks almost the same, but the **numbers** (see the histograms in the second row) have a totally different range.
 
 ```python
-transforms.Normalize(
-    mean=[0.485, 0.456, 0.406],
-    std=[0.229, 0.224, 0.225]
-)
+img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+# 1) Scale to [0, 1]
+img_01 = img_rgb.astype(np.float32) / 255.0
+print(img_01.min(), img_01.max())          # 0.0 1.0
+
+# 2) Standardize with ImageNet mean/std (per channel, RGB order)
+mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+img_std = (img_01 - mean) / std
+print(img_std.min(), img_std.max())        # roughly -2.1 to 2.6
+
+# 3) Min-Max normalization (stretch to the full [0, 1] range)
+img_minmax = cv2.normalize(img_rgb, None, 0, 1, cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 ```
 
-For RGB images, each channel can have its own mean and standard deviation.
+> **Common mistake:** convert to `float32` **before** dividing. If you stay in `uint8` the result is wrong. Also, the mean/std order must match the channel order (RGB vs BGR).
 
 ---
 
 ## 6. Convert Color Spaces
 
-![Color Spaces](images/color_spaces.png)
+**What it is:** representing the same image with different channels.
 
-A **color space** is a numerical way of representing colors.
+**Why we need it:** each color space makes a different task easier.
 
-Common color spaces include:
+| Color space | Channels | Useful for |
+|---|---|---|
+| **RGB / BGR** | Red, Green, Blue | Display, deep learning input |
+| **Grayscale** | 1 channel (brightness) | Faster processing, edge detection, when color is not needed |
+| **HSV** | Hue, Saturation, Value | **Color-based segmentation** (e.g. "find all red objects"), because color (H) is separated from brightness (V) |
+| **LAB** | Lightness, a, b | Color comparison closer to human perception |
 
-```text
-RGB
-Grayscale
-HSV
-```
-
-### RGB
-
-RGB uses three channels:
-
-```text
-R → Red
-G → Green
-B → Blue
-```
-
-A pixel can be:
+![Color spaces](images/07_color_spaces.png)
 
 ```python
-[255, 0, 0]
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)   # shape (512, 512), a single channel
+hsv  = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+lab  = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+
+print(img.shape, gray.shape)   # (512, 512, 3) (512, 512)
 ```
 
-which represents pure red.
+### Splitting channels
 
-An RGB image commonly has:
+Each channel is just a grayscale image showing "how much" of that component each pixel has. Bright = high value.
 
-```text
-Height × Width × 3
-```
-
-For example:
-
-```text
-224 × 224 × 3
-```
-
-### Grayscale
-
-A grayscale image uses one channel.
-
-Typical values are:
-
-```text
-0   → Black
-255 → White
-```
-
-In PIL:
+![Channels](images/08_channels.png)
 
 ```python
-gray = image.convert("L")
+b, g, r = cv2.split(img)                  # OpenCV order is B, G, R
+h, s, v = cv2.split(hsv)
+
+merged = cv2.merge([b, g, r])             # put them back together
 ```
 
-The shape becomes:
-
-```text
-224 × 224
-```
-
-instead of:
-
-```text
-224 × 224 × 3
-```
-
-### HSV
-
-HSV stands for:
-
-```text
-H → Hue
-S → Saturation
-V → Value
-```
-
-- **Hue:** Type of color.
-- **Saturation:** Strength or purity of the color.
-- **Value:** Brightness.
-
-HSV can be useful for color detection and image segmentation.
+> **Note on HSV in OpenCV:** Hue goes from `0` to `179` (not 360), while S and V go from `0` to `255`.
 
 ---
 
 # 1.6 Image Visualization
 
-Visualization helps us **see and understand the image data** that a computer is processing.
+## 1. Displaying Images
 
----
+**Why it matters:** in computer vision you constantly need to *see* the result of every step to catch mistakes early.
 
-## 7. Displaying Images
-
-![Displaying Images](images/display_image.png)
-
-We can display an image using Matplotlib:
+**Using Matplotlib** (works in Jupyter and Colab):
 
 ```python
-import matplotlib.pyplot as plt
-
-plt.imshow(image)
+plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))   # convert BGR -> RGB first
+plt.title("Original image")
+plt.axis("off")                                     # hide the axes
 plt.show()
 ```
 
-For grayscale images:
+**Grayscale images** have a single channel, so Matplotlib colors them with a default colormap (viridis, greenish) unless you set `cmap="gray"`:
+
+![Colormaps](images/09_display_cmap.png)
 
 ```python
-plt.imshow(gray, cmap="gray")
+plt.imshow(gray, cmap="gray")       # correct for grayscale
 plt.show()
 ```
 
-`cmap="gray"` tells Matplotlib to display the image using a grayscale colormap.
+**Using OpenCV windows** (only in normal Python scripts, **not** Jupyter/Colab):
+
+```python
+cv2.imshow("Image", img)    # OpenCV expects BGR, so no conversion needed
+cv2.waitKey(0)              # wait for any key
+cv2.destroyAllWindows()
+```
+
+> In Google Colab use `from google.colab.patches import cv2_imshow` and `cv2_imshow(img)`, or just use Matplotlib.
 
 ---
 
-## 8. Displaying Multiple Images
+## 2. Displaying Multiple Images
 
-![Displaying Multiple Images](images/multiple_images.png)
+**Why it matters:** comparing "before vs after" is the best way to check that an operation did what you expected.
 
-Sometimes we need to compare several images or several versions of the same image.
+**How it works:** `plt.subplots(rows, cols)` creates a grid of axes, and we draw one image in each.
 
-For example:
-
-```text
-Original | Resized | Grayscale
-```
-
-Using Matplotlib:
+![Multiple images](images/10_multiple_images.png)
 
 ```python
-plt.subplot(1, 3, 1)
-plt.imshow(image)
-plt.axis("off")
+images = [
+    ("Original",    cv2.cvtColor(img, cv2.COLOR_BGR2RGB), None),
+    ("Grayscale",   gray,                                  "gray"),
+    ("Flipped",     cv2.cvtColor(cv2.flip(img, 1), cv2.COLOR_BGR2RGB), None),
+    ("Cropped",     cv2.cvtColor(crop, cv2.COLOR_BGR2RGB), None),
+    ("Rotated 90°", cv2.cvtColor(cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE), cv2.COLOR_BGR2RGB), None),
+    ("Blurred",     cv2.cvtColor(cv2.GaussianBlur(img, (15, 15), 0), cv2.COLOR_BGR2RGB), None),
+]
 
-plt.subplot(1, 3, 2)
-plt.imshow(resized)
-plt.axis("off")
+fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+for ax, (title, image, cmap) in zip(axes.ravel(), images):
+    ax.imshow(image, cmap=cmap)
+    ax.set_title(title)
+    ax.axis("off")
 
-plt.subplot(1, 3, 3)
-plt.imshow(gray, cmap="gray")
-plt.axis("off")
-
+plt.tight_layout()
 plt.show()
 ```
 
-### Understanding `subplot`
+> Images can have different sizes in the grid. Matplotlib scales each one to fit its own axes.
+
+---
+
+## 3. Histograms
+
+**What it is:** a chart that counts **how many pixels have each intensity value** (0 to 255).
+
+**How to read it:**
+- Peak on the **left** → dark image.
+- Peak on the **right** → bright image.
+- Values squeezed in a **narrow range** → low contrast.
+- Spread over the **whole range** → good contrast.
+
+**Why we need it:** judging exposure and contrast, choosing thresholds, and comparing images.
+
+![Histograms](images/11_histograms.png)
 
 ```python
-plt.subplot(1, 3, 1)
+# Grayscale histogram
+plt.hist(gray.ravel(), bins=256, range=(0, 256), color="gray")
+plt.xlabel("Pixel value")
+plt.ylabel("Count")
+plt.show()
+
+# Color histogram: one curve per channel
+for i, color in enumerate(["b", "g", "r"]):
+    hist = cv2.calcHist([img], [i], None, [256], [0, 256])
+    plt.plot(hist, color=color, label=color.upper())
+plt.legend()
+plt.show()
 ```
 
-means:
+### Histogram Equalization
 
-```text
-1 Row
-3 Columns
-Position 1
-```
+Spreads the pixel values over the full range, which **boosts contrast** in dull images. Notice how the histogram becomes wider and flatter:
 
-So the layout is:
-
-```text
-+----------+----------+----------+
-| Image 1  | Image 2  | Image 3  |
-+----------+----------+----------+
-```
-
-This is very useful for comparing **before and after preprocessing**.
-
----
-
-## 9. Histograms
-
-![Histogram](images/histogram.png)
-
-A **histogram** shows the distribution of pixel values in an image.
-
-For a grayscale image, pixel values normally range from:
-
-```text
-0 → 255
-```
-
-A histogram tells us:
-
-> How many pixels have each intensity value?
-
-### Histogram axes
-
-**X-axis:**
-
-```text
-Pixel Intensity
-0 → 255
-```
-
-**Y-axis:**
-
-```text
-Number of Pixels
-```
-
-### Dark image
-
-If an image contains mostly dark pixels, the histogram tends to have more values toward the left.
-
-```text
-0                         255
-|██████████                |
-```
-
-### Bright image
-
-If an image contains mostly bright pixels, the histogram tends to have more values toward the right.
-
-```text
-0                         255
-|                █████████|
-```
-
-### RGB Histogram
-
-For an RGB image, we can analyze the channels separately:
-
-```text
-Red Histogram
-Green Histogram
-Blue Histogram
-```
-
-This helps us understand the distribution of colors in the image.
-
----
-
-## 10. Pixel Inspection
-
-![Pixel Inspection](images/pixel_inspection.png)
-
-**Pixel inspection** means checking the exact value of a specific pixel.
-
-This is useful for:
-
-- Debugging.
-- Understanding image representation.
-- Checking preprocessing.
-- Understanding RGB channels.
-
-Suppose we have:
-
-```text
-224 × 224 × 3
-```
-
-We can inspect a pixel at:
-
-```text
-row = 100
-column = 50
-```
-
-Using NumPy:
+![Equalization](images/12_equalization.png)
 
 ```python
-pixel = image[100, 50]
+equalized = cv2.equalizeHist(gray)    # works on single-channel (grayscale) images only
 ```
 
-The result might be:
+---
+
+## 4. Pixel Inspection
+
+**What it is:** reading (or changing) the actual values of specific pixels.
+
+**Why we need it:** to *understand* that an image is just numbers, to debug (is the range 0-255 or 0-1? BGR or RGB?), and to check that an operation changed what you expect.
+
+![Pixel inspection](images/13_pixel_inspection.png)
 
 ```python
-[120, 200, 50]
+row, col = 100, 250
+
+# Color image: returns all 3 channels (B, G, R)
+print(img[row, col])            # [24 43 64]
+
+# A single channel of that pixel
+print(img[row, col, 0])         # Blue value -> 24
+
+# Grayscale image: returns one number
+print(gray[row, col])           # 47
+
+# Look at a small neighborhood (9x9 patch around the pixel)
+patch = gray[row-4:row+5, col-4:col+5]
+print(patch)
+
+# Change a pixel (or a region) directly
+img_copy = img.copy()
+img_copy[100:120, 250:270] = (0, 0, 255)    # paint a red square (BGR)
 ```
 
-This means:
-
-```text
-R = 120
-G = 200
-B = 50
-```
-
-### Grayscale Pixel
-
-For a grayscale image:
+### Useful image statistics
 
 ```python
-pixel = gray[100, 50]
+print("Shape :", img.shape)          # (512, 512, 3)
+print("Dtype :", img.dtype)          # uint8
+print("Min   :", img.min())
+print("Max   :", img.max())
+print("Mean per channel (B,G,R):", img.mean(axis=(0, 1)))
 ```
 
-The result could be:
-
-```text
-120
-```
-
-This is the intensity of that pixel.
+> **Remember:** index order is `[row, col]` = `[y, x]`. This is the opposite of what we usually write for coordinates `(x, y)`.
 
 ---
 
-# Image Dimensions in Computer Vision
+## Summary
 
-One important concept is the order of image dimensions.
+| Operation | Function | Typical use |
+|---|---|---|
+| Resize | `cv2.resize` | Fixed model input size |
+| Crop | `img[y1:y2, x1:x2]` | Focus on a region (ROI) |
+| Rotate | `cv2.rotate`, `cv2.warpAffine` | Fix orientation, augmentation |
+| Flip | `cv2.flip` | Augmentation |
+| Normalize | `/ 255.0`, `(x - mean) / std` | Stable and faster training |
+| Color conversion | `cv2.cvtColor` | Grayscale, HSV segmentation, etc. |
+| Display | `plt.imshow` | Always convert BGR → RGB |
+| Histogram | `cv2.calcHist`, `plt.hist` | Brightness and contrast analysis |
+| Pixel access | `img[row, col]` | Debugging and understanding the data |
 
-### PIL / NumPy / OpenCV
+## Key Takeaways
 
-Images are commonly represented as:
-
-```text
-Height × Width × Channels
-```
-
-Example:
-
-```text
-224 × 224 × 3
-```
-
-### PyTorch
-
-PyTorch commonly uses:
-
-```text
-Channels × Height × Width
-```
-
-Example:
-
-```text
-3 × 224 × 224
-```
-
-For a batch:
-
-```text
-Batch × Channels × Height × Width
-```
-
-Example:
-
-```text
-32 × 3 × 224 × 224
-```
-
-This means:
-
-```text
-32 images
-3 channels
-224 height
-224 width
-```
-
----
-
-# Complete Image Preprocessing Flow
-
-```text
-                 Raw Image
-                     ↓
-            Resize / Crop
-                     ↓
-           Rotate / Flip
-                     ↓
-          Color Conversion
-                     ↓
-              Normalize
-                     ↓
-             Visualization
-                     ↓
-       Histogram / Pixel Inspection
-                     ↓
-                Tensor
-                     ↓
-                  CNN
-                     ↓
-                 Output
-```
-
----
-
-# Quick Summary
-
-| Operation | Purpose |
-|---|---|
-| **Resize** | Change image dimensions |
-| **Crop** | Keep a selected region |
-| **Rotate** | Change image orientation |
-| **Flip** | Mirror the image |
-| **Normalize** | Scale pixel values |
-| **Color Space Conversion** | Convert RGB, Grayscale, HSV, etc. |
-| **Display Image** | Visualize an image |
-| **Multiple Images** | Compare image versions |
-| **Histogram** | Analyze pixel-value distribution |
-| **Pixel Inspection** | Inspect an individual pixel |
-
-## Key Idea
-
-> **An image is data. Image operations modify that data, while visualization helps us understand what the data contains.**
-
-These concepts form the foundation of **Image Preprocessing** before an image is passed to a CNN or another Computer Vision model.
+1. An image is a NumPy array: `(height, width, channels)`, values `0-255`.
+2. OpenCV uses **BGR**; Matplotlib uses **RGB**. Always convert before displaying.
+3. `cv2.resize` takes `(width, height)`, but array indexing uses `[row, col]`.
+4. Convert to `float32` **before** normalizing.
+5. Always visualize after each operation to verify the result.
