@@ -76,7 +76,7 @@ import numpy as np
 model = ResNet50(weights="imagenet")
 
 # 2. Load and resize the image
-img = load_img("/content/1.jpg", target_size=(224, 224))
+img = load_img("Your image's path", target_size=(224, 224))
 img = img_to_array(img)
 
 # 3. Add the batch dimension -> (1, 224, 224, 3)
