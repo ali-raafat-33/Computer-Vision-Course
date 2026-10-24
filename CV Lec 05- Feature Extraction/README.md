@@ -37,7 +37,7 @@ A CNN pretrained on ImageNet already knows how to detect edges, textures, shapes
 
 ## 2. Pipeline Overview
 
-![Pipeline](images/pipeline.png)
+![Pipeline](assets/pipeline.png)
 
 1. Load the HAM10000 images and metadata.
 2. Convert the 7 diagnosis classes into 2 labels (Benign / Malignant).
@@ -109,7 +109,7 @@ print(df["label"].value_counts())
 - `akiec` is removed because it is *pre-cancerous*, so it's ambiguous between benign and malignant.
 - `mel` and `bcc` become `1` (Malignant); everything else becomes `0` (Benign).
 
-![Class distribution](images/class_distribution.png)
+![Class distribution](assets/class_distribution.png)
 
 Notice the **class imbalance**: far more benign than malignant images. We handle this later with `class_weight="balanced"`.
 
@@ -135,7 +135,7 @@ base_model = ResNet50(
 | `include_top=False` | Remove the final 1000-class classification layer |
 | `pooling="avg"` | Apply Global Average Pooling so output is a flat vector, not a 7×7×2048 map |
 
-![ResNet50 feature extraction](images/resnet_features.png)
+![ResNet50 feature extraction](assets/resnet_features.png)
 
 ### Testing on a single image
 
@@ -275,7 +275,7 @@ We save **both** parts because inference needs both:
 
 ## 9. Inference on a New Image
 
-![Inference flow](images/inference_flow.png)
+![Inference flow](assets/inference_flow.png)
 
 ```python
 from google.colab import files
