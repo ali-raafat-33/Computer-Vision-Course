@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="390" viewBox="0 0 1100 390">
+<rect width="1100" height="390" rx="22" fill="#f7f9fc"/>
+<text x="550" y="42" font-family="Arial,sans-serif" font-size="27" font-weight="bold" text-anchor="middle" fill="#172b4d">Full Fine-Tuning</text>
+<rect x="45" y="110" width="155" height="90" rx="14" fill="#e6efff" stroke="#4d76b8" stroke-width="2"/>
+<text x="122" y="148" font-family="Arial" font-size="19" text-anchor="middle" fill="#172b4d">Input Image</text><text x="122" y="174" font-family="Arial" font-size="15" text-anchor="middle" fill="#172b4d">224 × 224 × 3</text>
+<path d="M200 155 H245" stroke="#52637a" stroke-width="3" fill="none"/><path d="M236 147 L246 155 L236 163" stroke="#52637a" stroke-width="3" fill="none"/>
+<rect x="250" y="85" width="440" height="140" rx="14" fill="#fff" stroke="#8795a8" stroke-width="2"/>
+<text x="470" y="111" font-family="Arial" font-size="19" font-weight="bold" text-anchor="middle" fill="#172b4d">ResNet50 Backbone</text>
+<rect x="270" y="130" width="190" height="72" rx="10" fill="#d9f4e4" stroke="#32845a"/>
+<text x="365" y="158" font-family="Arial" font-size="17" text-anchor="middle" fill="#165b38">Early Layers</text><text x="365" y="181" font-family="Arial" font-size="15" text-anchor="middle" fill="#165b38">Trainable</text>
+<rect x="470" y="130" width="200" height="72" rx="10" fill="#d9f4e4" stroke="#32845a"/>
+<text x="570" y="158" font-family="Arial" font-size="17" text-anchor="middle" fill="#165b38">Later Layers</text><text x="570" y="181" font-family="Arial" font-size="15" text-anchor="middle" fill="#165b38">Trainable</text>
+<path d="M690 155 H735" stroke="#52637a" stroke-width="3" fill="none"/><path d="M726 147 L736 155 L726 163" stroke="#52637a" stroke-width="3" fill="none"/>
+<rect x="740" y="110" width="150" height="90" rx="14" fill="#fff0d8" stroke="#c58a2b" stroke-width="2"/>
+<text x="815" y="147" font-family="Arial" font-size="18" text-anchor="middle" fill="#704800">Dense + Sigmoid</text><text x="815" y="173" font-family="Arial" font-size="15" text-anchor="middle" fill="#704800">Trainable</text>
+<path d="M890 155 H930" stroke="#52637a" stroke-width="3" fill="none"/><path d="M921 147 L931 155 L921 163" stroke="#52637a" stroke-width="3" fill="none"/>
+<rect x="935" y="110" width="125" height="90" rx="14" fill="#e6efff" stroke="#4d76b8" stroke-width="2"/>
+<text x="997" y="148" font-family="Arial" font-size="17" text-anchor="middle" fill="#172b4d">Prediction</text><text x="997" y="174" font-family="Arial" font-size="15" text-anchor="middle" fill="#172b4d">0 / 1</text>
+<text x="550" y="285" font-family="Arial" font-size="17" text-anchor="middle" fill="#344563">The backbone and classifier head are trained together.</text>
+<text x="550" y="320" font-family="Arial" font-size="15" text-anchor="middle" fill="#5b6573">BatchNormalization remains frozen in this practical example; other weights can update.</text>
+</svg>
