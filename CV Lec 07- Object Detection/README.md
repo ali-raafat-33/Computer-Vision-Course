@@ -1,4 +1,4 @@
-# Module 6 --- Object Detection
+#Object Detection
 
 > **Goal:** Understand how a computer vision model finds multiple
 > objects in one image, localizes each object with a bounding box,
