@@ -612,7 +612,7 @@ for image_index, result in enumerate(results):
 
     print(f"Saved visualization: {output_path}")
 
-    if result.boxes is None:
+    if result.boxes is None or len(result.boxes) == 0:
         continue
 
     for box in result.boxes:
